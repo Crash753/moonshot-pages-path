@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tagestext-Lücken-Generator</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--text:#172033;--muted:#6b7587;--accent:#2f6fed;--border:#dce2eb;--ok:#16803c;--bad:#c62828;--warn:#9a6b00}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.wrap{max-width:1000px;margin:auto;padding:24px 16px 50px}h1{margin:0 0 5px;font-size:clamp(1.6rem,4vw,2.25rem)}h2{margin:0 0 12px;font-size:1.15rem}.sub{margin:0;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 5px 20px #1720330a;margin-top:18px}
+textarea{width:100%;min-height:280px;resize:vertical;border:1px solid var(--border);border-radius:12px;padding:13px;font:inherit;line-height:1.55}
+.grid{display:grid;grid-template-columns:1fr 170px;gap:12px;align-items:end;margin-top:12px}
+label{display:block;font-size:.86rem;font-weight:650;margin-bottom:6px}
+input[type=number],select,.gap{width:100%;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font:inherit;background:#fff}
+.options{display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:12px;color:var(--muted);font-size:.9rem}
+.options label{font-weight:500;margin:0;display:flex;align-items:center;gap:7px}
+.options input[type=checkbox]{width:17px;height:17px}
+button{border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:650;cursor:pointer}
+.primary{background:var(--accent);color:white}.secondary{background:#eef2f8;color:var(--text)}.danger{background:#fff0f0;color:var(--bad)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.hidden{display:none}
+.collapsed{display:none}
+.status{margin-top:10px;color:var(--muted);min-height:1.3em}
+.meta{color:var(--muted);font-size:.9rem;margin-bottom:18px}
+#output{font-size:1.08rem;line-height:1.8}#output p{margin:0 0 1em}#output h1,#output h2,#output h3{line-height:1.3;margin:1.2em 0 .55em}
+.gap{display:inline-block;width:min(190px,32vw);min-width:75px;padding:3px 8px;margin:0 3px;vertical-align:baseline}
+.gap.correct{border-color:var(--ok);background:#effaf3}.gap.wrong{border-color:var(--bad);background:#fff2f2}.gap.revealed{border-color:var(--warn);background:#fff8dd}
+.score{margin-top:15px;font-weight:700}.progress{height:8px;background:#edf0f5;border-radius:99px;overflow:hidden;margin-top:12px}.progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}.tip{font-size:.86rem;color:var(--muted);line-height:1.5;margin-top:10px}
+.step{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:750;margin-bottom:7px}
+@media(max-width:650px){.grid{grid-template-columns:1fr}#output{font-size:1rem}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>📖 Tagestext-Lücken-Generator</h1>
+<p class="sub">Text einfügen → Lücken erzeugen → direkt ausfüllen.</p>
+</header>
+
+<section class="card" id="inputCard">
+<div class="step">Schritt 1</div>
+<h2>Text einfügen</h2>
+<textarea id="source" placeholder="Hier deinen Text hineinkopieren …"></textarea>
+<div class="grid">
+<div>
+<label for="difficulty">Schwierigkeit</label>
+<select id="difficulty">
+<option value="leicht">Leicht – ca. 10 %</option>
+<option value="mittel" selected>Mittel – ca. 15 %</option>
+<option value="schwer">Schwer – ca. 25 %</option>
+<option value="frei">Eigener Anteil</option>
+</select>
+</div>
+<div>
+<label for="percent">Lückenanteil (%)</label>
+<input id="percent" type="number" min="5" max="50" step="5" value="15">
+</div>
+</div>
+<div class="options">
+<label><input type="checkbox" id="hintMode"> 💡 Tipp-Modus: Anfangsbuchstaben anzeigen</label>
+<label><input type="checkbox" id="exactMode"> 🔢 Exakte Anzahl Lücken</label>
+<input id="exactCount" type="number" min="1" max="200" value="10" class="hidden">
+</div>
+<div class="actions">
+<button class="primary" id="create">Lückentext erstellen</button>
+<button class="secondary" id="clear">Leeren</button>
+</div>
+<div class="actions">
+<button class="secondary hidden" id="editText">✏️ Text bearbeiten</button>
+</div>
+<div class="tip">Die Formatierung von Absätzen und einfachen Überschriften wird möglichst beibehalten. Alles läuft vollständig lokal im Browser.</div>
+<div id="inputStatus" class="status"></div>
+</section>
+
+<section class="card hidden" id="workCard">
+<div class="step">Schritt 2</div>
+<div id="meta" class="meta"></div>
+<div class="actions" style="margin-top:0">
+<button class="primary" id="newGaps">Neue Lücken</button>
+<button class="secondary" id="check">Antworten prüfen</button>
+<button class="secondary" id="reveal">Lösungen anzeigen</button>
+<button class="secondary" id="reset">Zurücksetzen</button>
+<button class="danger" id="back">Anderen Text verwenden</button>
+</div>
+<div id="score" class="score hidden"></div>
+<div id="progress" class="progress hidden"><div></div></div>
+</section>
+
+<section class="card hidden" id="textCard">
+<article id="output"></article>
+</section>
+</div>
+
+<script>
+const state={blocks:[],percent:15,exact:null,hints:false};
+
+const $=id=>document.getElementById(id);
+function clean(s){return(s||"").replace(/\u00a0/g," ").replace(/[ \t]+/g," ").trim();}
+function esc(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function escAttr(s){return esc(s);}
+
+function parseText(raw){
+  raw=raw.replace(/\r\n?/g,"\n").trim();
+  // Leere Zeilen trennen Absätze; Zeilen mit typischer Überschriftenlänge werden als Überschrift behandelt.
+  const lines=raw.split("\n");
+  const blocks=[];
+  let para=[];
+  const flush=()=>{if(para.length){const t=clean(para.join(" "));if(t)blocks.push({tag:"p",text:t});para=[];}};
+  for(const line of lines){
+    const t=clean(line);
+    if(!t){flush();continue;}
+    const looksHeading=t.length<100 && !/[.!?]$/.test(t) && (t===t.toUpperCase() || /^[A-ZÄÖÜ][^.!?]{0,70}$/.test(t));
+    if(looksHeading){flush();blocks.push({tag:"h3",text:t});}
+    else para.push(t);
+  }
+  flush();
+  if(!blocks.length)blocks.push({tag:"p",text:raw});
+  return blocks;
+}
+
+function pickGaps(text,pct,exact){
+  const protectedRanges=[];
+  const paren=/\([^()]*\)/g; let pm;
+  while((pm=paren.exec(text))) protectedRanges.push([pm.index,pm.index+pm[0].length]);
+  const words=[]; const re=/\b[\p{L}\p{N}ÄÖÜäöüß][\p{L}\p{N}ÄÖÜäöüß'-]{3,}\b/gu; let m;
+  while((m=re.exec(text))){
+    if(!protectedRanges.some(([x,y])=>m.index>=x&&m.index<y))
+      words.push({start:m.index,end:m.index+m[0].length,word:m[0]});
+  }
+  if(!words.length)return[];
+  const n=exact?Math.min(exact,words.length):Math.max(1,Math.round(words.length*pct/100));
+  return words.sort(()=>Math.random()-.5).slice(0,n).sort((x,y)=>x.start-y.start);
+}
+
+function render(){
+  const out=$("output");out.innerHTML="";
+  let total=0;
+  state.blocks.forEach(block=>{
+    const el=document.createElement(block.tag);
+    const gaps=pickGaps(block.text,state.percent,state.exact);
+    let html="",pos=0;
+    gaps.forEach(g=>{
+      html+=esc(block.text.slice(pos,g.start));
+      const hint=state.hints?` placeholder="${escAttr(g.word[0])}…"`:"";
+      html+=`<input class="gap" data-answer="${escAttr(g.word)}"${hint} autocomplete="off" spellcheck="false" aria-label="Lücke ${total+1}">`;
+      total++;pos=g.end;
+    });
+    html+=esc(block.text.slice(pos));el.innerHTML=html;out.appendChild(el);
+  });
+  $("meta").textContent=state.exact?`${total} Lücken · exakt ausgewählt`:`${total} Lücken · ${state.percent}% des Textes`;
+  $("score").classList.add("hidden");$("score").textContent="";
+  document.querySelectorAll(".gap").forEach(i=>i.addEventListener("input",updateProgress));
+  $("progress").classList.remove("hidden");updateProgress();
+  $("textCard").classList.remove("hidden");$("workCard").classList.remove("hidden");
+}
+
+function updateProgress(){
+  const inputs=[...document.querySelectorAll(".gap")]; if(!inputs.length)return;
+  const filled=inputs.filter(i=>i.value.trim()).length;
+  $("progress").classList.remove("hidden");
+  $("progress").firstElementChild.style.width=(filled/inputs.length*100)+"%";
+}
+function check(){
+  const inputs=[...document.querySelectorAll(".gap")];if(!inputs.length)return;
+  let ok=0;
+  inputs.forEach(i=>{
+    const a=i.dataset.answer.trim().toLocaleLowerCase("de-DE");
+    const v=i.value.trim().toLocaleLowerCase("de-DE");
+    i.classList.remove("correct","wrong","revealed");
+    if(v===a){i.classList.add("correct");ok++;}else i.classList.add("wrong");
+  });
+  $("score").classList.remove("hidden");
+  $("score").textContent=ok===inputs.length?`🎉 Perfekt! ${ok} von ${inputs.length} richtig!`:`${ok} von ${inputs.length} richtig (${Math.round(ok/inputs.length*100)} %)`;
+}
+function reveal(){document.querySelectorAll(".gap").forEach(i=>{i.value=i.dataset.answer;i.classList.remove("correct","wrong");i.classList.add("revealed");});updateProgress();}
+function reset(){document.querySelectorAll(".gap").forEach(i=>{i.value="";i.classList.remove("correct","wrong","revealed");});$("score").classList.add("hidden");updateProgress();}
+
+$("difficulty").onchange=()=>{const v=$("difficulty").value;if(v==="leicht")$("percent").value=10;if(v==="mittel")$("percent").value=15;if(v==="schwer")$("percent").value=25;$("percent").disabled=v!=="frei";};
+$("exactMode").onchange=()=>$("exactCount").classList.toggle("hidden",!$("exactMode").checked);
+$("percent").oninput=()=>{$("difficulty").value="frei";};
+$("create").onclick=()=>{
+  const raw=$("source").value.trim();
+  if(!raw){$("inputStatus").textContent="Bitte zuerst einen Text einfügen.";return;}
+  state.percent=Math.max(5,Math.min(50,Number($("percent").value)||15));
+  state.exact=$("exactMode").checked?Math.max(1,Number($("exactCount").value)||1):null;
+  state.hints=$("hintMode").checked;
+  state.blocks=parseText(raw);render();$("inputStatus").textContent="Lückentext erstellt.";
+  $("source").classList.add("hidden");
+  $("percent").parentElement.classList.add("hidden");
+  $("clear").classList.add("hidden");
+  $("create").classList.add("hidden");
+  $("editText").classList.remove("hidden");
+  $("inputCard").querySelector("h2").textContent="Text bereit";
+  $("inputCard").querySelector(".tip").textContent="Der Ausgangstext ist eingeklappt. Mit „Text bearbeiten“ kannst du ihn wieder einblenden.";
+  window.scrollTo({top:$("workCard").offsetTop-12,behavior:"smooth"});
+};
+$("newGaps").onclick=render;
+$("check").onclick=check;
+$("reveal").onclick=reveal;
+$("reset").onclick=reset;
+$("clear").onclick=()=>{$("source").value="";$("inputStatus").textContent="";};
+$("back").onclick=()=>{window.scrollTo({top:0,behavior:"smooth"});$("source").focus();};
+$("editText").onclick=()=>{
+  $("source").classList.remove("hidden");
+  $("percent").parentElement.classList.remove("hidden");
+  $("clear").classList.remove("hidden");
+  $("create").classList.remove("hidden");
+  $("editText").classList.add("hidden");
+  $("inputCard").querySelector("h2").textContent="Text einfügen";
+  $("inputCard").querySelector(".tip").textContent="Die Formatierung von Absätzen und einfachen Überschriften wird möglichst beibehalten. Alles läuft vollständig lokal im Browser.";
+  window.scrollTo({top:0,behavior:"smooth"});
+  $("source").focus();
+};
+</script>
+</body>
+</html>
